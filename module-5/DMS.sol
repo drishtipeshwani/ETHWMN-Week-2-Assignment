@@ -21,62 +21,53 @@ contract DMS{
     event Transfer(address indexed from, address indexed to,uint256 balance);
 
     address private owner;
-    address constant private receiver = 0x551803B870F980aD45c552bb14D3A265600f1BE0;
-    mapping(address => uint256) balances;
-    uint currentDay = 0;
-    uint totalCalls = 0;
-    string [] storedInfo;
-
+    address payable public receiver;
+    address private beneficiary; //beneficiary address added by owner who can trigger the function to transfer the remaining balance once the deadline is over
+    uint256 ownerBalance;
+    uint lastBlockNumber;
+    
     using SafeMath for uint256;
 
-    constructor(){
+    constructor(address _beneficiary,address payable _receiver){
+        beneficiary = _beneficiary;
+        receiver = _receiver;
         owner = msg.sender;
-        balances[msg.sender] = msg.sender.balance;
+        ownerBalance = msg.sender.balance;
+        lastBlockNumber = block.number;
     }
 
     modifier onlyOwner(){
-        require(isOwner(),"Function accessible only by the owner !!");
+       require(msg.sender == owner,"Function is accessible only by the owner");
+       _;
+    }
+
+    modifier onlyBeneficiary(){
+        require(msg.sender== beneficiary,"Function accessible only by beneficiary added !!");
         _;
     }
 
-    function isOwner() public view returns(bool){
-        return msg.sender == owner;
-    }
-
-    function transferRemainingBalance() private returns(bool) {
-        // If the still_alive function is not called for last 10 blocks this function can execute
-            require(totalCalls - currentDay >= 10,"Person is alive");
-            uint256 remainingBalance = balances[msg.sender];
-            balances[receiver] = balances[receiver].add(remainingBalance);
-            balances[msg.sender] = 0;
-            emit Transfer(msg.sender, receiver,remainingBalance);  //Calling the event
+     // function to transfer the remaining balance
+    function transferRemainingBalance() onlyBeneficiary external returns(bool){
+       //Transaction will take only if for last 10 blocks still_alive function is not called
+            require(block.number - lastBlockNumber >= 10,"Owner is alive");
+            receiver.transfer(ownerBalance);
+            emit Transfer(msg.sender, receiver,ownerBalance);  //Calling the event
             return true;
     }
+
      // still_alive function can only be called by the owner
-    function still_alive() onlyOwner public returns(uint){
-        currentDay = currentDay + 1;
-        totalCalls = totalCalls + 1;
-        return currentDay;
+    function still_alive() onlyOwner public{
+        require(block.number - lastBlockNumber < 10,"Owner is not alive");
+        lastBlockNumber = block.number;
+        ownerBalance = msg.sender.balance;
     }
 
-    function storeInfo(string memory _info) public {
-        totalCalls = totalCalls + 1;
-        storedInfo.push(_info);
+    function getBlockNumber() public view returns(uint){
+        return block.number;
     }
 
-    function getInfo() public view returns(string[] memory){
-       return storedInfo;
+    function getOwnerBalance() public view returns(uint256){
+        return ownerBalance;
     }
 
-    function getTotalCalls() public view returns(uint){
-        return totalCalls;
-    }
-
-    function checkIfDead() public returns(bool) { 
-        if(transferRemainingBalance()){
-            return true;
-        }else{
-            return false;
-        }   
-    }
 }
