@@ -21,18 +21,17 @@ contract DMS{
     event Transfer(address indexed from, address indexed to,uint256 balance);
 
     address private owner;
-    address payable public receiver;
-    address private beneficiary; //beneficiary address added by owner who can trigger the function to transfer the remaining balance once the deadline is over
-    uint256 ownerBalance;
+    address constant public receiver = 0x78664B53Fd264a9b4Df93aFB733f8B66721266e7;
+    address public beneficiary; //beneficiary address added by owner who can trigger the function to transfer the remaining balance once the deadline is over
+    mapping(address=>uint256) balances;
     uint lastBlockNumber;
     
     using SafeMath for uint256;
 
-    constructor(address _beneficiary,address payable _receiver){
+    constructor(address _beneficiary){
         beneficiary = _beneficiary;
-        receiver = _receiver;
         owner = msg.sender;
-        ownerBalance = msg.sender.balance;
+        balances[owner] = msg.sender.balance;
         lastBlockNumber = block.number;
     }
 
@@ -47,11 +46,12 @@ contract DMS{
     }
 
      // function to transfer the remaining balance
-    function transferRemainingBalance() onlyBeneficiary external returns(bool){
+    function transferRemainingBalance() onlyBeneficiary public returns(bool){
        //Transaction will take only if for last 10 blocks still_alive function is not called
             require(block.number - lastBlockNumber >= 10,"Owner is alive");
-            receiver.transfer(ownerBalance);
-            emit Transfer(msg.sender, receiver,ownerBalance);  //Calling the event
+            balances[receiver]  = balances[receiver].add(balances[owner]);
+            balances[owner] = 0;
+            emit Transfer(msg.sender, receiver,balances[owner]);  //Calling the event
             return true;
     }
 
@@ -59,7 +59,7 @@ contract DMS{
     function still_alive() onlyOwner public{
         require(block.number - lastBlockNumber < 10,"Owner is not alive");
         lastBlockNumber = block.number;
-        ownerBalance = msg.sender.balance;
+        balances[owner] = msg.sender.balance;
     }
 
     function getBlockNumber() public view returns(uint){
@@ -67,7 +67,7 @@ contract DMS{
     }
 
     function getOwnerBalance() public view returns(uint256){
-        return ownerBalance;
+        return balances[owner];
     }
 
 }
